@@ -1,4 +1,4 @@
-pub fn line_to_cmds(line: &String) -> Vec<String> {
+pub fn tokenize_command(line: &String) -> Vec<String> {
     let mut result = Vec::new();
     let mut token = String::new();
     let mut has_backslash = false;
@@ -6,6 +6,19 @@ pub fn line_to_cmds(line: &String) -> Vec<String> {
     let mut skip_next = false;
 
     for (i, char) in line.chars().enumerate() {
+        let mut push_token_to_result = || {
+            let result_of_token = token.trim();
+            if !result_of_token.is_empty() {
+                result.push(String::from(result_of_token))
+            }
+            token = String::new();
+        };
+
+        let is_next_char_same = || match line.chars().nth(i + 1) {
+            Some(next_char) => char == next_char,
+            None => false,
+        };
+
         if skip_next {
             skip_next = false;
             continue;
@@ -17,7 +30,7 @@ pub fn line_to_cmds(line: &String) -> Vec<String> {
             continue;
         }
 
-        if separator.is_some() && separator.unwrap() == char  {
+        if separator.is_some() && separator.unwrap() == char {
             separator = None;
         }
 
@@ -31,41 +44,25 @@ pub fn line_to_cmds(line: &String) -> Vec<String> {
             }
 
             if char == ';' {
-                // push token
-                let result_of_token = token.trim();
-                if !result_of_token.is_empty() {
-                    result.push(String::from(result_of_token))
-                }
-                token = String::new();
-                // end push token
+                push_token_to_result();
 
                 result.push(String::from(";"));
                 continue;
             }
 
             if char == '&' || char == '|' {
-                let next_is_same_char = match line.chars().nth(i + 1) {
-                    Some(next_char) => char == next_char,
-                    None => false
-                };
+                push_token_to_result();
 
-                if next_is_same_char {
-                    // push token
-                    let result_of_token = token.trim();
-                    if !result_of_token.is_empty() {
-                        result.push(String::from(result_of_token))
-                    }
-                    token = String::new();
-                    // end push token
-
+                if is_next_char_same() {
+                    push_token_to_result();
                     skip_next = true;
 
-                    let mut sign: String  = String::from(char);
-                    sign.push(char);
-
-                    result.push(sign);
-                    continue;
+                    result.push(format!("{}{}", char, char));
+                } else {
+                    result.push(String::from(char));
                 }
+
+                continue;
             }
 
             if is_separator(char) {
@@ -76,7 +73,6 @@ pub fn line_to_cmds(line: &String) -> Vec<String> {
         token.push(char);
     }
 
-
     let result_of_token = token.trim();
     if !result_of_token.is_empty() {
         result.push(String::from(result_of_token))
@@ -86,7 +82,7 @@ pub fn line_to_cmds(line: &String) -> Vec<String> {
 }
 
 fn is_separator(char: char) -> bool {
-    return char == '\'' || char == '"' || char == '`'
+    return char == '\'' || char == '"' || char == '`';
 }
 
 #[cfg(test)]
@@ -94,16 +90,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_line_to_cmds() {
+    fn test_tokenize_command() {
         let expected_a_b = vec![
             ("ls", vec!["ls"]),
-            ("ls &", vec!["ls &"]),
+            ("ls &", vec!["ls" , "&"]),
             ("ls -lh", vec!["ls -lh"]),
             (
                 "awk -F \" \" '{print $1}' README.md",
                 vec!["awk -F \" \" '{print $1}' README.md"],
             ),
-            ("ls | wc", vec!["ls | wc"]),
+            ("ls | wc", vec!["ls", "|", "wc"]),
             ("echo #foo; echo bar", vec!["echo"]),
             ("echo foo; echo bar", vec!["echo foo", ";", "echo bar"]),
             ("echo 'foo; echo bar'", vec!["echo 'foo; echo bar'"]),
@@ -122,7 +118,7 @@ mod tests {
             ("echo \"\\\"\"", vec!["echo \"\\\"\""]),
             (
                 "man awk| awk -F \"[ ,.\\\"]+\" 'foo' |sort -k2nr|head",
-                vec!["man awk| awk -F \"[ ,.\\\"]+\" 'foo' |sort -k2nr|head"],
+                vec!["man awk", "|", "awk -F \"[ ,.\\\"]+\" 'foo' |sort -k2nr|head"],
             ),
             (";", vec![";"]),
             ("||", vec!["||"]),
@@ -132,20 +128,25 @@ mod tests {
         ];
 
         for (line, result) in expected_a_b {
-            let expected_cmd = line_to_cmds(&String::from(line));
+            let expected_cmd = tokenize_command(&String::from(line));
 
             assert_vec_str_equals(expected_cmd, result)
         }
     }
 
     fn assert_vec_str_equals(a: Vec<String>, b: Vec<&str>) {
-        assert_eq!(a.len(), b.len(), "Vector {:?} of size {} and {:?} of size {} should have the same size", a, a.len(), b, b.len());
+        assert_eq!(
+            a.len(),
+            b.len(),
+            "Vector {:?} of size {} and {:?} of size {} should have the same size",
+            a,
+            a.len(),
+            b,
+            b.len()
+        );
 
         for (i, item) in a.iter().enumerate() {
             assert_eq!(item, b[i])
         }
     }
-
-
-
 }

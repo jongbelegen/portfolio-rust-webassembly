@@ -1,8 +1,6 @@
-use crate::ShellOutput;
+use crate::command::Command;
+use crate::shell_state::ShellState;
 
-pub fn run(args: Vec<String>) -> ShellOutput {
-    ShellOutput {
-        stdout: Some(args.join(" ")),
-        stderr: None
-    }
+pub fn run(cmd: &Command, shell_state: &mut ShellState) {
+    shell_state.output.set_stdout(cmd.args.join(" "));
 }

@@ -1,8 +1,5 @@
-use crate::ShellOutput;
+use crate::shell_state::ShellState;
 
-pub fn run() -> ShellOutput {
-    ShellOutput {
-        stdout: Some(String::from("\u{001b}c")),
-        stderr: None,
-    }
+pub fn run(shell_state: &mut ShellState) {
+    shell_state.output.set_stdout(String::from("\u{001b}c"))
 }

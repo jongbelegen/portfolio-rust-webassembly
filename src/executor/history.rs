@@ -1,11 +1,10 @@
-use std::path::{PathBuf};
-use std::fs::{File, OpenOptions};
-use std::io::{Error};
-use std::io::prelude::*;
-use chrono::{Utc, DateTime};
+use crate::shell_state::ShellState;
 use chrono::prelude::*;
-
-use crate::ShellOutput;
+use chrono::{DateTime, Utc};
+use std::fs::{File, OpenOptions};
+use std::io::prelude::*;
+use std::io::Error;
+use std::path::PathBuf;
 
 const HISTORY_PATH: &str = "history.txt";
 
@@ -15,7 +14,9 @@ pub struct History {
     date: DateTime<Utc>,
 }
 
-fn get_path() -> PathBuf { PathBuf::from(HISTORY_PATH) }
+fn get_path() -> PathBuf {
+    PathBuf::from(HISTORY_PATH)
+}
 
 fn read_file() -> Result<String, Error> {
     let mut file = File::open(get_path())?;
@@ -25,7 +26,7 @@ fn read_file() -> Result<String, Error> {
     Ok(contents)
 }
 
-pub fn run() -> ShellOutput {
+pub fn run(shell_state: &mut ShellState) {
     let read_file = read_file().expect("Reading of history file failed");
     let history_list: Vec<String> = read_file
         .lines()
@@ -33,10 +34,7 @@ pub fn run() -> ShellOutput {
         .map(format_history)
         .collect();
 
-    ShellOutput {
-        stdout: Some(history_list.join("\n")),
-        stderr: None,
-    }
+    shell_state.output.set_stdout(history_list.join("\n"));
 }
 
 pub fn format_history(history: History) -> String {
@@ -73,7 +71,7 @@ pub fn append(cmd: &String) -> Result<(), Error> {
         .open(HISTORY_PATH)
         .unwrap();
 
-    writeln!(file, ": {};{}", timestamp, cmd);
+    writeln!(file, ": {};{}", timestamp, cmd)?;
 
     Ok(())
 }
@@ -84,9 +82,12 @@ mod history_tests {
 
     #[test]
     fn test_parse_line() {
-        assert_eq!(parse_line(&String::from(" : 1626441404;echo eee")), History {
-            input: String::from("echo eee"),
-            date: Utc.timestamp(1626441404, 0),
-        });
+        assert_eq!(
+            parse_line(&String::from(" : 1626441404;echo eee")),
+            History {
+                input: String::from("echo eee"),
+                date: Utc.timestamp(1626441404, 0),
+            }
+        );
     }
 }
