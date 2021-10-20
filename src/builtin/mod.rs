@@ -7,6 +7,7 @@ use crate::shell_state::ShellState;
 pub mod clear;
 mod echo;
 
+#[derive(Debug, PartialEq)]
 enum BuiltinCommands {
     Echo,
     History,
@@ -30,11 +31,27 @@ impl FromStr for BuiltinCommands {
     }
 }
 
-pub fn evaluate(cmd: &Command, shell_state: &mut ShellState) -> Result<(), ()> {
+pub fn evaluate(cmd: &Command, shell_state: &mut ShellState) {
     match BuiltinCommands::from_str(&cmd.keyword) {
         Ok(BuiltinCommands::Echo) => Ok(echo::run(cmd, shell_state)),
         Ok(BuiltinCommands::History) => Ok(history::run(shell_state)),
         Ok(BuiltinCommands::Clear) => Ok(clear::run(shell_state)),
         _ => Err(()),
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_builtin_commands_from_str_when_defined() {
+        assert!(BuiltinCommands::from_str("echo").is_ok());
+        assert_eq!(BuiltinCommands::from_str("echo"), Ok(BuiltinCommands::Echo));
+    }
+
+    #[test]
+    fn test_builtin_commands_from_str_when_undefined() {
+        assert!(BuiltinCommands::from_str("notabuiltin").is_err());
     }
 }

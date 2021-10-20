@@ -14,8 +14,9 @@ pub fn read_line() -> ReadResult {
         .read_line(&mut command)
         .expect("Failed to read command");
 
+    let trimmed = String::from(command.trim());
     match command.eq("") {
-        false => ReadResult::Ok(command),
+        false => ReadResult::Ok(trimmed),
         true => ReadResult::Empty,
     }
 }
