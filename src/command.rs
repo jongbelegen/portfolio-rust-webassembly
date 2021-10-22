@@ -48,4 +48,10 @@ mod tests {
             })
         )
     }
+
+    #[test]
+    fn test_command_fails() {
+        let cmd = Command::from_str("");
+        assert_eq!(cmd, Err(()));
+    }
 }
