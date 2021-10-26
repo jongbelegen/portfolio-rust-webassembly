@@ -5,19 +5,34 @@ pub struct ShellState {
 }
 #[derive(Default, Debug)]
 pub struct ShellOutput {
+    pub code: Option<u32>,
     pub stdout: Option<String>,
     pub stderr: Option<String>,
+    pub stdin: Option<String>,
 }
 
 impl ShellOutput {
+    pub fn is_ok(&self) -> bool {
+        self.code == Some(0)
+    }
+
     pub fn set_stdout(&mut self, stdout: String) {
+        self.code = Some(0);
         self.stdout = Some(stdout.clone());
         self.stderr = None;
     }
 
+    pub fn set_stderr(&mut self, code: u32, stdout: String) {
+        self.code = Some(code);
+        self.stderr = Some(stdout.clone());
+        self.stdout = None;
+    }
+
     pub fn clear(&mut self) {
+        self.code = None;
         self.stdout = None;
         self.stderr = None;
+        self.stdin = None;
     }
 }
 

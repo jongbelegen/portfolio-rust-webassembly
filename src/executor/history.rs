@@ -46,7 +46,6 @@ pub fn format_history(history: History) -> String {
 fn decode_line(history: &String) -> History {
     let result = history.split_once(";");
 
-    dbg!(&result);
     let (date, command) = result.unwrap();
     let date = date.parse().unwrap();
 
