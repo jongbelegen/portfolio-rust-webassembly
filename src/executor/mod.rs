@@ -6,12 +6,18 @@ use crate::terminal::print_result;
 use std::str::FromStr;
 
 pub mod history;
-mod pipelines;
 
 pub fn run(raw_line: &String, shell_state: &mut ShellState) {
     history::append(raw_line).expect("History should be appendable");
-    evaluate_tokens(parser::tokenize_command(raw_line), shell_state);
+    evaluate_tokens(parser::tokenize_raw_line(raw_line), shell_state);
+    shell_state.output.clear()
 }
+
+// pub fn run_as_pipeline(tokens: Vec<String>, shell_state: &mut ShellState) {
+//     for token in tokens {
+//         token.split()
+//     }
+// }
 
 fn evaluate_tokens(tokens: Vec<String>, shell_state: &mut ShellState) {
     let mut skip_next = false;
@@ -98,7 +104,7 @@ mod tests {
         assert_eq!(state.output.code, Some(0));
     }
 
-    # [test]
+    #[test]
     fn and_token_should_eval_second_cmd_when_first_cmd_succeeds() {
         let mut state = ShellState::default();
 
@@ -106,7 +112,7 @@ mod tests {
             vec![
                 String::from("true"),
                 String::from(AND_TOKEN),
-                String::from("false")
+                String::from("false"),
             ],
             &mut state,
         );
@@ -114,7 +120,7 @@ mod tests {
         assert_eq!(state.output.code, Some(1));
     }
 
-    # [test]
+    #[test]
     fn and_token_should_not_eval_second_cmd_when_first_cmd_fails() {
         let mut state = ShellState::default();
 
@@ -122,7 +128,7 @@ mod tests {
             vec![
                 String::from("false"),
                 String::from(AND_TOKEN),
-                String::from("true")
+                String::from("true"),
             ],
             &mut state,
         );
@@ -130,7 +136,7 @@ mod tests {
         assert_eq!(state.output.code, Some(1));
     }
 
-    # [test]
+    #[test]
     fn semicolon_terminator_should_eval_when_first_cmd_fails() {
         let mut state = ShellState::default();
 
@@ -138,13 +144,15 @@ mod tests {
             vec![
                 String::from("false"),
                 String::from(SEMICOLON_TERMINATOR),
-                String::from("true")
+                String::from("true"),
             ],
             &mut state,
         );
 
         assert_eq!(state.output.code, Some(0));
     }
+
+    #[test]
     fn semicolon_terminator_should_eval_when_first_cmd_succeeds() {
         let mut state = ShellState::default();
 
@@ -152,12 +160,32 @@ mod tests {
             vec![
                 String::from("true"),
                 String::from(SEMICOLON_TERMINATOR),
-                String::from("echo foo")
+                String::from("echo foo"),
             ],
             &mut state,
         );
 
         assert_eq!(state.output.code, Some(0));
         assert_eq!(state.output.stdout, Some(String::from("foo")));
+    }
+
+    #[test]
+    fn evaluate_should_always_evaluate_all_tokens() {
+        let mut state = ShellState::default();
+
+        evaluate_tokens(
+            vec![
+                String::from("false"),
+                String::from(AND_TOKEN),
+                String::from("true"),
+                String::from(OR_TOKEN),
+                String::from("false"),
+                String::from(";"),
+                String::from("UNKNOWN COMMAND"),
+            ],
+            &mut state,
+        );
+
+        assert_eq!(state.output.code, Some(127));
     }
 }

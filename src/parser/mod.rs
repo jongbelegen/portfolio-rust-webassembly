@@ -1,17 +1,18 @@
-pub fn tokenize_command(line: &String) -> Vec<String> {
+
+pub fn tokenize_raw_line(line: &String) -> Vec<String> {
     let mut result = Vec::new();
     let mut token = String::new();
     let mut has_backslash = false;
-    let mut separator: Option<char> = None; // example: " ' `
+    let mut escaper: Option<char> = None; // example: " ' `
     let mut skip_next = false;
 
     for (i, char) in line.chars().enumerate() {
         let mut push_token_to_result = || {
             let result_of_token = token.trim();
             if !result_of_token.is_empty() {
-                result.push(String::from(result_of_token))
+                result.push(String::from(result_of_token));
+                token = String::new();
             }
-            token = String::new();
         };
 
         let is_next_char_same = || match line.chars().nth(i + 1) {
@@ -30,11 +31,11 @@ pub fn tokenize_command(line: &String) -> Vec<String> {
             continue;
         }
 
-        if separator.is_some() && separator.unwrap() == char {
-            separator = None;
+        if escaper == Some(char) {
+            escaper = None;
         }
 
-        if separator.is_none() {
+        if escaper.is_none() {
             if char == '#' {
                 break;
             }
@@ -65,8 +66,8 @@ pub fn tokenize_command(line: &String) -> Vec<String> {
                 continue;
             }
 
-            if is_separator(char) {
-                separator = Some(char);
+            if is_escaper(char) {
+                escaper = Some(char);
             }
         }
 
@@ -81,7 +82,7 @@ pub fn tokenize_command(line: &String) -> Vec<String> {
     return result;
 }
 
-fn is_separator(char: char) -> bool {
+fn is_escaper(char: char) -> bool {
     return char == '\'' || char == '"' || char == '`';
 }
 
@@ -128,7 +129,7 @@ mod tests {
         ];
 
         for (line, result) in expected_a_b {
-            let expected_cmd = tokenize_command(&String::from(line));
+            let expected_cmd = tokenize_raw_line(&String::from(line));
 
             assert_vec_str_equals(expected_cmd, result)
         }

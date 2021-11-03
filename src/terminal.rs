@@ -37,23 +37,11 @@ pub fn print_result(shell_state: &ShellState) {
             stdin: _,
         } => println!("{}", text),
         ShellOutput {
-            code: Some(0),
-            stdout: None,
-            stderr: _,
-            stdin: _,
-        } => (),
-        ShellOutput {
             code: Some(_),
             stderr: Some(text),
             stdout: _,
             stdin: _,
         } => eprintln!("{}", text),
-        ShellOutput {
-            code: Some(_),
-            stderr: None,
-            stdout: _,
-            stdin: _,
-        } => (),
-        output => eprintln!("No values provided, {:?}", output),
+        _ => ()
     }
 }
