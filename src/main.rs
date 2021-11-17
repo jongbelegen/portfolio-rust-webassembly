@@ -7,6 +7,7 @@ mod terminal;
 mod command;
 mod builtin;
 mod parser;
+mod utils;
 
 fn main() {
     let mut shell_state = ShellState::default();

@@ -1,6 +1,8 @@
 use crate::builtin;
 use crate::command::Command;
-use crate::parser;
+use crate::parser::token;
+use crate::parser::token::Token::{And, Or, Pipeline, Raw, Semicolon};
+use crate::parser::token::{group_by_pipeline, Token};
 use crate::shell_state::{ShellOutput, ShellState};
 use crate::terminal::print_result;
 use std::str::FromStr;
@@ -9,17 +11,28 @@ pub mod history;
 
 pub fn run(raw_line: &String, shell_state: &mut ShellState) {
     history::append(raw_line).expect("History should be appendable");
-    evaluate_tokens(parser::tokenize_raw_line(raw_line), shell_state);
+    evaluate_tokens(token::tokenize_raw_line(raw_line), shell_state);
     shell_state.output.clear()
 }
 
-// pub fn run_as_pipeline(tokens: Vec<String>, shell_state: &mut ShellState) {
-//     for token in tokens {
-//         token.split()
+// fn run_with_pipelines(tokens: Vec<Token>, shell_state: &mut ShellState) {
+//     let mut iter = group_by_pipeline(tokens).iter().peekable();
+//
+//     while Some(group) = iter.next() {
+//         evaluate_tokens(group, shell_state);
+//     }
+//
+//     dbg!(tokens.clone());
+//     dbg!(group_by_pipeline(tokens.clone()).windows(2));
+//     for group in group_by_pipeline(tokens).windows(2) {
+//         dbg!(&group[0]);
+//         dbg!(&group[1]);
+//
+//         // evaluate_tokens(group.clone(), shell_state);
 //     }
 // }
 
-fn evaluate_tokens(tokens: Vec<String>, shell_state: &mut ShellState) {
+fn evaluate_tokens(tokens: Vec<Token>, shell_state: &mut ShellState) {
     let mut skip_next = false;
     for token in tokens {
         if skip_next {
@@ -27,40 +40,27 @@ fn evaluate_tokens(tokens: Vec<String>, shell_state: &mut ShellState) {
             continue;
         }
 
-        if is_and_or_list_token(&token) {
-            if token.eq(OR_TOKEN) && shell_state.output.is_ok() {
-                skip_next = true;
+        match token {
+            Raw(cmd) => {
+                if execute_command(&cmd, shell_state).is_err() {
+                    shell_state
+                        .output
+                        .set_stderr(127, format!("shell: command not found: {}", &cmd));
+                }
             }
-
-            if token.eq(AND_TOKEN) && !shell_state.output.is_ok() {
-                skip_next = true;
+            And => {
+                if !shell_state.output.is_ok() {
+                    skip_next = true;
+                }
             }
-
-            continue;
+            Or => {
+                if shell_state.output.is_ok() {
+                    skip_next = true;
+                }
+            }
+            _ => (),
         }
-
-        // TODO: Handle this somewhere else
-        if execute_command(&token, shell_state).is_err() {
-            shell_state
-                .output
-                .set_stderr(127, format!("shell: command not found: {}", &token));
-        }
-
-        print_result(shell_state);
     }
-}
-
-const OR_TOKEN: &str = "||";
-const AND_TOKEN: &str = "&&";
-const SEMICOLON_TERMINATOR: &str = ";";
-const ASYNC_TOKEN: &str = "&";
-
-// https://pubs.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html#tag_02_09_03
-const AND_OR_LIST_TOKENS: [&str; 4] = [AND_TOKEN, OR_TOKEN, SEMICOLON_TERMINATOR, ASYNC_TOKEN];
-
-pub fn is_and_or_list_token(token: &String) -> bool {
-    let token_as_str: &str = &token;
-    AND_OR_LIST_TOKENS.contains(&token_as_str)
 }
 
 fn execute_command(raw_cmd: &String, shell_state: &mut ShellState) -> Result<(), ()> {
@@ -78,9 +78,9 @@ mod tests {
 
         evaluate_tokens(
             vec![
-                String::from("true"),
-                String::from(OR_TOKEN),
-                String::from("UNKNOWN_COMMAND"),
+                Raw(String::from("true")),
+                Or,
+                Raw(String::from("UNKNOWN_COMMAND")),
             ],
             &mut state,
         );
@@ -94,9 +94,9 @@ mod tests {
 
         evaluate_tokens(
             vec![
-                String::from("UNKNOWN_COMMAND"),
-                String::from(OR_TOKEN),
-                String::from("true"),
+                Raw(String::from("UNKNOWN_COMMAND")),
+                Or,
+                Raw(String::from("true")),
             ],
             &mut state,
         );
@@ -109,11 +109,7 @@ mod tests {
         let mut state = ShellState::default();
 
         evaluate_tokens(
-            vec![
-                String::from("true"),
-                String::from(AND_TOKEN),
-                String::from("false"),
-            ],
+            vec![Raw(String::from("true")), And, Raw(String::from("false"))],
             &mut state,
         );
 
@@ -125,11 +121,7 @@ mod tests {
         let mut state = ShellState::default();
 
         evaluate_tokens(
-            vec![
-                String::from("false"),
-                String::from(AND_TOKEN),
-                String::from("true"),
-            ],
+            vec![Raw(String::from("false")), And, Raw(String::from("true"))],
             &mut state,
         );
 
@@ -142,9 +134,9 @@ mod tests {
 
         evaluate_tokens(
             vec![
-                String::from("false"),
-                String::from(SEMICOLON_TERMINATOR),
-                String::from("true"),
+                Raw(String::from("false")),
+                Semicolon,
+                Raw(String::from("true")),
             ],
             &mut state,
         );
@@ -158,9 +150,9 @@ mod tests {
 
         evaluate_tokens(
             vec![
-                String::from("true"),
-                String::from(SEMICOLON_TERMINATOR),
-                String::from("echo foo"),
+                Raw(String::from("true")),
+                Semicolon,
+                Raw(String::from("echo foo")),
             ],
             &mut state,
         );
@@ -175,13 +167,13 @@ mod tests {
 
         evaluate_tokens(
             vec![
-                String::from("false"),
-                String::from(AND_TOKEN),
-                String::from("true"),
-                String::from(OR_TOKEN),
-                String::from("false"),
-                String::from(";"),
-                String::from("UNKNOWN COMMAND"),
+                Raw(String::from("false")),
+                And,
+                Raw(String::from("true")),
+                Or,
+                Raw(String::from("false")),
+                Semicolon,
+                Raw(String::from("UNKNOWN COMMAND")),
             ],
             &mut state,
         );
