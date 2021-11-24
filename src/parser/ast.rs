@@ -1,3 +1,5 @@
+#![feature(slice_patterns)]
+
 use crate::parser::token::Token;
 
 #[derive(Debug, PartialEq)]
@@ -64,34 +66,35 @@ fn group_by_token<'a>(tokens: &'a [Token], token: &Token) -> Option<Vec<&'a [Tok
 // tree will be executed depth-first
 
 pub fn parse_to_ast(tokens: &[Token]) -> AstItem {
-    match group_by_token(tokens, &Token::Semicolon) {
-        Some(groups) => {
-            let tokens: Vec<_> = groups
-                .into_iter()
-                .map(|token_slice| parse_to_ast(token_slice))
-                .collect();
-            Script(tokens)
-        }
-        None => match split_last_by_logical_expr(tokens) {
-            Some((logical_token, left, right)) => LogicalExpression {
-                op: logical_token,
-                left: Box::new(parse_to_ast(left)),
-                right: Box::new(parse_to_ast(right)),
-            },
-            None => match group_by_token(tokens, &Token::Pipeline) {
-                Some(groups) => {
-                    let tokens: Vec<_> = groups
-                        .into_iter()
-                        .map(|token_slice| parse_to_ast(token_slice))
-                        .collect();
-                    Pipeline(tokens)
-                }
-                None => match tokens.first().unwrap() {
-                    Token::Raw(str) => AstItem::Command { raw: str.clone() },
-                    _ => AstItem::Debug,
-                },
-            },
-        },
+    if let Some(groups) = group_by_token(tokens, &Token::Semicolon) {
+        let tokens: Vec<_> = groups
+            .into_iter()
+            .map(|token_slice| parse_to_ast(token_slice))
+            .collect();
+
+        return Script(tokens);
+    }
+
+    if let Some((logical_token, left, right)) = split_last_by_logical_expr(tokens) {
+        return LogicalExpression {
+            op: logical_token,
+            left: Box::new(parse_to_ast(left)),
+            right: Box::new(parse_to_ast(right)),
+        };
+    }
+
+    if let Some(groups) = group_by_token(tokens, &Token::Pipeline) {
+        let tokens: Vec<_> = groups
+            .into_iter()
+            .map(|token_slice| parse_to_ast(token_slice))
+            .collect();
+
+        return Pipeline(tokens);
+    }
+
+    match &tokens {
+        &[Token::Raw(str) ] => AstItem::Command { raw: str.clone() },
+        tokens => panic!("All tokens should have been processed, and we should have been left with only an command : {:?}", tokens)
     }
 }
 
