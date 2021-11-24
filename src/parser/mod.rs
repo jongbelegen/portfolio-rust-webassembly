@@ -1,3 +1,3 @@
 pub mod token;
-mod ast;
+pub mod ast;
 

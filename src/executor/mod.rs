@@ -1,6 +1,7 @@
 use crate::builtin;
 use crate::command::Command;
 use crate::parser::token;
+use crate::parser::ast;
 use crate::parser::token::Token::{And, Or, Raw};
 use crate::parser::token::{Token};
 use crate::shell_state::{ShellState};
@@ -11,7 +12,9 @@ pub mod history;
 
 pub fn run(raw_line: &String, shell_state: &mut ShellState) {
     history::append(raw_line).expect("History should be appendable");
-    evaluate_tokens(token::tokenize_raw_line(raw_line), shell_state);
+    let tokens = token::tokenize_raw_line(raw_line);
+    let a = ast::parse_to_ast(tokens.as_slice());
+    dbg!(a);
     shell_state.output.clear()
 }
 

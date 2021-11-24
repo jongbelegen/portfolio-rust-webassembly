@@ -21,6 +21,7 @@ pub enum AstItem {
     Command {
         raw: String,
     },
+    Script(Vec<AstItem>),
     LogicalExpression {
         op: LogicalExpressionOp,
         left: Box<AstItem>,
@@ -29,7 +30,7 @@ pub enum AstItem {
     Pipeline(Vec<AstItem>),
     Debug,
 }
-use AstItem::{LogicalExpression, Pipeline};
+use AstItem::{LogicalExpression, Pipeline, Script};
 
 fn split_last_by_logical_expr(
     tokens: &[Token],
@@ -49,37 +50,46 @@ fn split_last_by_logical_expr(
     }
 }
 
-fn group_by_pipeline(tokens: &[Token]) -> Option<Vec<&[Token]>> {
-    let tokens: Vec<&[Token]> = tokens.split(|token| token == &Token::Pipeline).collect();
+fn group_by_token<'a>(tokens: &'a [Token], token: &Token) -> Option<Vec<&'a [Token]>> {
+    let tokens: Vec<&[Token]> = tokens.split(|t| t == token).collect();
 
-    
-    match tokens.len() {
-        1 => None,
-        _ => Some(tokens),
+    if tokens.len() == 1 {
+        None
+    } else {
+        Some(tokens)
     }
 }
 
 // ast prioritizes tokens to be evaluated earlier to represent the tree as how it should be executed
 // tree will be executed depth-first
 
-fn parse_to_ast(tokens: &[Token]) -> AstItem {
-    match split_last_by_logical_expr(tokens) {
-        Some((logical_token, left, right)) => LogicalExpression {
-            op: logical_token,
-            left: Box::new(parse_to_ast(left)),
-            right: Box::new(parse_to_ast(right)),
-        },
-        None => match group_by_pipeline(tokens) {
-            Some(tokens) => {
-                let tokens: Vec<_> = tokens
-                    .into_iter()
-                    .map(|token_slice| parse_to_ast(token_slice))
-                    .collect();
-                Pipeline(tokens)
-            }
-            None => match tokens.first().unwrap() {
-                Token::Raw(str) => AstItem::Command { raw: str.clone() },
-                _ => AstItem::Debug,
+pub fn parse_to_ast(tokens: &[Token]) -> AstItem {
+    match group_by_token(tokens, &Token::Semicolon) {
+        Some(groups) => {
+            let tokens: Vec<_> = groups
+                .into_iter()
+                .map(|token_slice| parse_to_ast(token_slice))
+                .collect();
+            Script(tokens)
+        }
+        None => match split_last_by_logical_expr(tokens) {
+            Some((logical_token, left, right)) => LogicalExpression {
+                op: logical_token,
+                left: Box::new(parse_to_ast(left)),
+                right: Box::new(parse_to_ast(right)),
+            },
+            None => match group_by_token(tokens, &Token::Pipeline) {
+                Some(groups) => {
+                    let tokens: Vec<_> = groups
+                        .into_iter()
+                        .map(|token_slice| parse_to_ast(token_slice))
+                        .collect();
+                    Pipeline(tokens)
+                }
+                None => match tokens.first().unwrap() {
+                    Token::Raw(str) => AstItem::Command { raw: str.clone() },
+                    _ => AstItem::Debug,
+                },
             },
         },
     }
@@ -87,8 +97,9 @@ fn parse_to_ast(tokens: &[Token]) -> AstItem {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::AstItem::*;
+    use super::*;
+    use crate::parser::token::Token::Semicolon;
 
     #[test]
     fn test_logical_expression() {
@@ -190,6 +201,51 @@ mod tests {
     }
 
     #[test]
+    fn test_semicolon() {
+        let from = &[
+            Token::Raw(String::from("a")),
+            Token::Semicolon,
+            Token::Raw(String::from("b")),
+        ];
+
+        let expect = Script(vec![
+            Command {
+                raw: String::from("a"),
+            },
+            Command {
+                raw: String::from("b"),
+            },
+        ]);
+
+        assert_eq!(parse_to_ast(from), expect)
+    }
+
+    #[test]
+    fn test_multiple_semicolons() {
+        let from = &[
+            Token::Raw(String::from("a")),
+            Token::Semicolon,
+            Token::Raw(String::from("b")),
+            Token::Semicolon,
+            Token::Raw(String::from("c")),
+        ];
+
+        let expect = Script(vec![
+            Command {
+                raw: String::from("a"),
+            },
+            Command {
+                raw: String::from("b"),
+            },
+            Command {
+                raw: String::from("c"),
+            },
+        ]);
+
+        assert_eq!(parse_to_ast(from), expect)
+    }
+
+    #[test]
     fn test_split_last_by_logical_expr() {
         let tokens = &[
             Token::Semicolon,
@@ -210,12 +266,12 @@ mod tests {
         let tokens = &[Token::Or, Token::Pipeline, Token::And, Token::Async];
         let expected: Vec<&[Token]> = vec![&[Token::Or], &[Token::And, Token::Async]];
 
-        assert_eq!(group_by_pipeline(tokens), Some(expected));
+        assert_eq!(group_by_token(tokens, &Token::Pipeline), Some(expected));
     }
 
     #[test]
     fn test_group_by_pipeline_when_pipelines_are_not_defined() {
         let tokens = &[Token::And, Token::Async];
-        assert_eq!(group_by_pipeline(tokens), None);
+        assert_eq!(group_by_token(tokens, &Token::Pipeline), None);
     }
 }
