@@ -1,22 +1,9 @@
-use crate::parser::ast::ControlToken::Semicolon;
 use crate::parser::token::Token;
 
 #[derive(Debug, PartialEq)]
-pub struct Command {
-    raw: String,
-}
-
-#[derive(Debug, PartialEq)]
-enum LogicalExpressionOp {
+pub enum LogicalExpressionOp {
     Or,
     And,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct LogicalExpression {
-    op: LogicalExpressionOp,
-    left: Box<AstItem>,
-    right: Box<AstItem>,
 }
 
 impl From<&Token> for LogicalExpressionOp {
@@ -31,26 +18,22 @@ impl From<&Token> for LogicalExpressionOp {
 
 #[derive(Debug, PartialEq)]
 pub enum AstItem {
-    Command(Command),
-    LogicalExpression(LogicalExpression),
+    Command {
+        raw: String,
+    },
+    LogicalExpression {
+        op: LogicalExpressionOp,
+        left: Box<AstItem>,
+        right: Box<AstItem>,
+    },
+    Pipeline(Vec<AstItem>),
     Debug,
 }
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-enum ControlToken {
-    Or,
-    And,
-    Semicolon,
-}
-
-// TODO: accept slice
-pub fn parse_to_ast_entry(mut tokens: Vec<Token>) -> AstItem {
-    parse_to_ast(tokens.as_slice())
-}
+use AstItem::{Command, LogicalExpression, Pipeline};
 
 fn split_last_by_logical_expr(
     tokens: &[Token],
-) -> Result<(LogicalExpressionOp, &[Token], &[Token]), &[Token]> {
+) -> Option<(LogicalExpressionOp, &[Token], &[Token])> {
     let maybe_index = tokens
         .iter()
         .rposition(|token| token == &Token::Or || token == &Token::And);
@@ -60,22 +43,43 @@ fn split_last_by_logical_expr(
             let (left, right_with_token) = tokens.split_at(i);
             let logical_op = LogicalExpressionOp::from(right_with_token.get(0).unwrap());
 
-            Ok((logical_op, left, &right_with_token[1..]))
+            Some((logical_op, left, &right_with_token[1..]))
         }
-        None => Err(tokens),
+        None => None,
     }
 }
 
+fn group_by_pipeline(tokens: &[Token]) -> Option<Vec<&[Token]>> {
+    let tokens: Vec<&[Token]> = tokens.split(|token| token == &Token::Pipeline).collect();
+
+    match tokens.len() {
+        1 => None,
+        _ => Some(tokens),
+    }
+}
+
+// ast prioritizes tokens to be evaluated earlier to represent the tree as how it should be executed
+// tree will be executed depth-first
+
 fn parse_to_ast(tokens: &[Token]) -> AstItem {
     match split_last_by_logical_expr(tokens) {
-        Ok((logical_token, left, right)) => AstItem::LogicalExpression(LogicalExpression {
+        Some((logical_token, left, right)) => LogicalExpression {
             op: logical_token,
             left: Box::new(parse_to_ast(left)),
             right: Box::new(parse_to_ast(right)),
-        }),
-        Err(tokens) => match tokens.first().unwrap() {
-            Token::Raw(str) => AstItem::Command(Command { raw: str.clone() }),
-            _ => AstItem::Debug,
+        },
+        None => match group_by_pipeline(tokens) {
+            Some(tokens) => {
+                let tokens: Vec<_> = tokens
+                    .into_iter()
+                    .map(|token_slice| parse_to_ast(token_slice))
+                    .collect();
+                Pipeline(tokens)
+            }
+            None => match tokens.first().unwrap() {
+                Token::Raw(str) => AstItem::Command { raw: str.clone() },
+                _ => AstItem::Debug,
+            },
         },
     }
 }
@@ -86,48 +90,48 @@ mod tests {
 
     #[test]
     fn test_logical_expression() {
-        let expect = AstItem::LogicalExpression(LogicalExpression {
+        let expect = AstItem::LogicalExpression {
             op: LogicalExpressionOp::Or,
-            left: Box::new(AstItem::Command(Command {
+            left: Box::new(AstItem::Command {
                 raw: String::from("a"),
-            })),
-            right: Box::new(AstItem::Command(Command {
+            }),
+            right: Box::new(AstItem::Command {
                 raw: String::from("b"),
-            })),
-        });
+            }),
+        };
 
         // a || b
-        let from = vec![
+        let from = &[
             Token::Raw(String::from("a")),
             Token::Or,
             Token::Raw(String::from("b")),
         ];
 
-        assert_eq!(parse_to_ast_entry(from), expect);
+        assert_eq!(parse_to_ast(from), expect);
     }
 
     // The last logical expression token should be the top of the tree
     // since this represents execution order
     #[test]
     fn test_multiple_logical_expression() {
-        let expect = AstItem::LogicalExpression(LogicalExpression {
+        let expect = AstItem::LogicalExpression {
             op: LogicalExpressionOp::And,
-            left: Box::new(AstItem::LogicalExpression(LogicalExpression {
+            left: Box::new(AstItem::LogicalExpression {
                 op: LogicalExpressionOp::Or,
-                left: Box::new(AstItem::Command(Command {
+                left: Box::new(AstItem::Command {
                     raw: String::from("a"),
-                })),
-                right: Box::new(AstItem::Command(Command {
+                }),
+                right: Box::new(AstItem::Command {
                     raw: String::from("b"),
-                })),
-            })),
-            right: Box::new(AstItem::Command(Command {
+                }),
+            }),
+            right: Box::new(AstItem::Command {
                 raw: String::from("c"),
-            })),
-        });
+            }),
+        };
 
         // a || b && c
-        let from = vec![
+        let from = &[
             Token::Raw(String::from("a")),
             Token::Or,
             Token::Raw(String::from("b")),
@@ -135,7 +139,52 @@ mod tests {
             Token::Raw(String::from("c")),
         ];
 
-        assert_eq!(parse_to_ast_entry(from), expect);
+        assert_eq!(parse_to_ast(from), expect);
+    }
+
+    #[test]
+    fn test_pipeline() {
+        let from = &[
+            Token::Raw(String::from("a")),
+            Token::Pipeline,
+            Token::Raw(String::from("b")),
+        ];
+
+        let expect = Pipeline(vec![
+            Command {
+                raw: String::from("a"),
+            },
+            Command {
+                raw: String::from("b"),
+            },
+        ]);
+
+        assert_eq!(parse_to_ast(from), expect)
+    }
+
+    #[test]
+    fn test_multiple_pipelines() {
+        let from = &[
+            Token::Raw(String::from("a")),
+            Token::Pipeline,
+            Token::Raw(String::from("b")),
+            Token::Pipeline,
+            Token::Raw(String::from("c")),
+        ];
+
+        let expect = Pipeline(vec![
+            Command {
+                raw: String::from("a"),
+            },
+            Command {
+                raw: String::from("b"),
+            },
+            Command {
+                raw: String::from("c"),
+            },
+        ]);
+
+        assert_eq!(parse_to_ast(from), expect)
     }
 
     #[test]
@@ -150,7 +199,21 @@ mod tests {
 
         assert_eq!(
             split_last_by_logical_expr(tokens),
-            Ok((LogicalExpressionOp::And, &tokens[..3], &tokens[4..]))
+            Some((LogicalExpressionOp::And, &tokens[..3], &tokens[4..]))
         )
+    }
+
+    #[test]
+    fn test_group_by_pipeline_when_pipelines_are_defined() {
+        let tokens = &[Token::Or, Token::Pipeline, Token::And, Token::Async];
+        let expected: Vec<&[Token]> = vec![&[Token::Or], &[Token::And, Token::Async]];
+
+        assert_eq!(group_by_pipeline(tokens), Some(expected));
+    }
+
+    #[test]
+    fn test_group_by_pipeline_when_pipelines_are_not_defined() {
+        let tokens = &[Token::And, Token::Async];
+        assert_eq!(group_by_pipeline(tokens), None);
     }
 }
