@@ -1,5 +1,3 @@
-#![feature(slice_patterns)]
-
 use crate::parser::token::Token;
 
 #[derive(Debug, PartialEq)]
@@ -30,7 +28,6 @@ pub enum AstItem {
         right: Box<AstItem>,
     },
     Pipeline(Vec<AstItem>),
-    Debug,
 }
 use AstItem::{LogicalExpression, Pipeline, Script};
 
@@ -66,9 +63,9 @@ fn group_by_token<'a>(tokens: &'a [Token], token: &Token) -> Option<Vec<&'a [Tok
 // tree will be executed depth-first
 
 pub fn parse_to_ast(tokens: &[Token]) -> AstItem {
-    if let Some(groups) = group_by_token(tokens, &Token::Semicolon) {
-        let tokens: Vec<_> = groups
-            .into_iter()
+    if tokens.contains(&Token::Semicolon) {
+        let tokens: Vec<_> = tokens
+            .split(|t| t == &Token::Semicolon)
             .map(|token_slice| parse_to_ast(token_slice))
             .collect();
 
@@ -102,7 +99,6 @@ pub fn parse_to_ast(tokens: &[Token]) -> AstItem {
 mod tests {
     use super::AstItem::*;
     use super::*;
-    use crate::parser::token::Token::Semicolon;
 
     #[test]
     fn test_logical_expression() {

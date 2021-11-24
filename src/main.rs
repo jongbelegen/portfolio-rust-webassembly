@@ -8,6 +8,7 @@ mod command;
 mod builtin;
 mod parser;
 mod utils;
+mod exception;
 
 fn main() {
     let mut shell_state = ShellState::default();

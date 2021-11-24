@@ -1,21 +1,27 @@
+use std::convert::TryFrom;
 use crate::builtin;
 use crate::command::Command;
-use crate::parser::token;
+use crate::exception::Exception;
 use crate::parser::ast;
+use crate::parser::token;
 use crate::parser::token::Token::{And, Or, Raw};
-use crate::parser::token::{Token};
-use crate::shell_state::{ShellState};
-
-use std::str::FromStr;
+use crate::parser::token::{contains_unsupported_async_token, Token};
+use crate::shell_state::ShellState;
 
 pub mod history;
 
-pub fn run(raw_line: &String, shell_state: &mut ShellState) {
+pub fn run(raw_line: &String, shell_state: &mut ShellState) -> Result<(), Exception> {
     history::append(raw_line).expect("History should be appendable");
     let tokens = token::tokenize_raw_line(raw_line);
+
+    if contains_unsupported_async_token(&tokens) {
+        return Err(Exception::AsyncIsUnSupported);
+    }
+
     let a = ast::parse_to_ast(tokens.as_slice());
     dbg!(a);
-    shell_state.output.clear()
+    shell_state.output.clear();
+    Ok(())
 }
 
 // fn run_with_pipelines(tokens: Vec<Token>, shell_state: &mut ShellState) {
@@ -67,7 +73,7 @@ fn evaluate_tokens(tokens: Vec<Token>, shell_state: &mut ShellState) {
 }
 
 fn execute_command(raw_cmd: &String, shell_state: &mut ShellState) -> Result<(), ()> {
-    let cmd = Command::from_str(raw_cmd)?;
+    let cmd = Command::try_from(raw_cmd)?;
     builtin::evaluate(&cmd, shell_state)
 }
 

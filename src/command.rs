@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Command {
@@ -6,10 +6,10 @@ pub struct Command {
     pub args: Vec<String>,
 }
 
-impl FromStr for Command {
-    type Err = ();
+impl TryFrom<&String> for Command {
+    type Error = ();
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn try_from(s: &String) -> Result<Self, Self::Error> {
         let mut command_split = s.split_whitespace().map(|s| s.to_string());
 
         Ok(Command {
@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn test_command_from_str_when_only_keyword_is_provided() {
-        let cmd = Command::from_str("echo");
+        let cmd = Command::try_from(&String::from("echo"));
 
         assert_eq!(
             cmd,
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_command_str_when_keyword_and_args_are_provided() {
-        let cmd = Command::from_str("echo --foo bar");
+        let cmd = Command::try_from(&String::from("echo --foo bar"));
 
         assert_eq!(
             cmd,
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_command_fails() {
-        let cmd = Command::from_str("");
+        let cmd = Command::try_from(&String::from(""));
         assert_eq!(cmd, Err(()));
     }
 }

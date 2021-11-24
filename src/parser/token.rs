@@ -9,7 +9,7 @@ pub enum Token {
 }
 
 // transform raw lines in to tokens
-// >> tokenize_raw_line("a ; b | c && d")
+// >> tokenize_raw_line("a; b | c && d")
 // vec!["a", ";", "|", "&&"]
 pub fn tokenize_raw_line(line: &String) -> Vec<Token> {
     let mut result = Vec::new();
@@ -103,6 +103,10 @@ pub fn tokenize_raw_line(line: &String) -> Vec<Token> {
     }
 
     return result;
+}
+
+pub fn contains_unsupported_async_token(tokens: &Vec<Token>) -> bool {
+    tokens.contains(&Token::Async)
 }
 
 fn is_escaper(char: char) -> bool {
