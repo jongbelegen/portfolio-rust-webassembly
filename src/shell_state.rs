@@ -34,12 +34,6 @@ impl ShellOutput {
         self.stderr = None;
         self.stdin = None;
     }
-
-    pub fn move_stdout_to_stdin(&mut self) {
-        self.stdin = self.stdout.clone();
-        self.stdout = None;
-    }
-
 }
 
 #[cfg(test)]

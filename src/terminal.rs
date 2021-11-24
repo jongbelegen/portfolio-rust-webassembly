@@ -1,4 +1,4 @@
-use crate::shell_state::{ShellOutput, ShellState};
+
 use std::io::{self, Write};
 
 pub enum ReadResult {
@@ -28,20 +28,20 @@ fn print_prompt() {
     io::stdout().flush().unwrap();
 }
 
-pub fn print_result(shell_state: &ShellState) {
-    match &shell_state.output {
-        ShellOutput {
-            code: Some(0),
-            stdout: Some(text),
-            stderr: _,
-            stdin: _,
-        } => println!("{}", text),
-        ShellOutput {
-            code: Some(_),
-            stderr: Some(text),
-            stdout: _,
-            stdin: _,
-        } => eprintln!("{}", text),
-        _ => ()
-    }
-}
+// pub fn print_result(shell_state: &ShellState) {
+//     match &shell_state.output {
+//         ShellOutput {
+//             code: Some(0),
+//             stdout: Some(text),
+//             stderr: _,
+//             stdin: _,
+//         } => println!("{}", text),
+//         ShellOutput {
+//             code: Some(_),
+//             stderr: Some(text),
+//             stdout: _,
+//             stdin: _,
+//         } => eprintln!("{}", text),
+//         _ => ()
+//     }
+// }

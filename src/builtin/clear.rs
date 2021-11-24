@@ -6,7 +6,7 @@ pub fn run(shell_state: &mut ShellState) {
 
 #[cfg(test)]
 mod tests {
-    use crate::command::Command;
+    
     use super::*;
 
     #[test]

@@ -8,27 +8,6 @@ pub enum Token {
     Raw(String),
 }
 
-use Token::{And, Async, Or, Pipeline, Raw, Semicolon};
-
-pub fn group_by_pipeline(tokens: Vec<Token>) -> Vec<Vec<Token>> {
-    let mut grouped: Vec<Vec<Token>> = vec![];
-    let mut insert_slice_from: usize = 0;
-
-    for (i, token) in tokens.iter().enumerate() {
-        if token == &Pipeline {
-            let vec = Vec::from(&tokens[insert_slice_from..i]);
-            insert_slice_from = i + 1;
-            grouped.push(vec)
-        }
-    }
-
-    if tokens.len() > insert_slice_from {
-        grouped.push(Vec::from(&tokens[insert_slice_from..]))
-    }
-
-    grouped
-}
-
 // transform raw lines in to tokens
 // >> tokenize_raw_line("a ; b | c && d")
 // vec!["a", ";", "|", "&&"]
@@ -133,6 +112,7 @@ fn is_escaper(char: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Token::{And, Async, Or, Pipeline, Raw, Semicolon};
 
     #[test]
     fn test_tokenize_command() {
@@ -242,19 +222,5 @@ mod tests {
         for (i, item) in a.iter().enumerate() {
             assert_eq!(item, &b[i])
         }
-    }
-
-    #[test]
-    fn test_group_by_pipeline_when_pipelines_exist() {
-        let result = group_by_pipeline(vec![And, Or, Pipeline, Async, Pipeline, Or]);
-
-        assert_eq!(result, vec![vec![And, Or], vec![Async], vec![Or],])
-    }
-
-    #[test]
-    fn test_group_by_pipeline_when_pipelines_does_not_exist() {
-        let result = group_by_pipeline(vec![And, Or, Async, Or]);
-
-        assert_eq!(result, vec![vec![And, Or, Async, Or]])
     }
 }

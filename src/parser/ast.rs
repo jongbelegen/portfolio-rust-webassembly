@@ -29,7 +29,7 @@ pub enum AstItem {
     Pipeline(Vec<AstItem>),
     Debug,
 }
-use AstItem::{Command, LogicalExpression, Pipeline};
+use AstItem::{LogicalExpression, Pipeline};
 
 fn split_last_by_logical_expr(
     tokens: &[Token],
@@ -52,6 +52,7 @@ fn split_last_by_logical_expr(
 fn group_by_pipeline(tokens: &[Token]) -> Option<Vec<&[Token]>> {
     let tokens: Vec<&[Token]> = tokens.split(|token| token == &Token::Pipeline).collect();
 
+    
     match tokens.len() {
         1 => None,
         _ => Some(tokens),
@@ -87,15 +88,16 @@ fn parse_to_ast(tokens: &[Token]) -> AstItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::AstItem::*;
 
     #[test]
     fn test_logical_expression() {
-        let expect = AstItem::LogicalExpression {
+        let expect = LogicalExpression {
             op: LogicalExpressionOp::Or,
-            left: Box::new(AstItem::Command {
+            left: Box::new(Command {
                 raw: String::from("a"),
             }),
-            right: Box::new(AstItem::Command {
+            right: Box::new(Command {
                 raw: String::from("b"),
             }),
         };
@@ -114,18 +116,18 @@ mod tests {
     // since this represents execution order
     #[test]
     fn test_multiple_logical_expression() {
-        let expect = AstItem::LogicalExpression {
+        let expect = LogicalExpression {
             op: LogicalExpressionOp::And,
-            left: Box::new(AstItem::LogicalExpression {
+            left: Box::new(LogicalExpression {
                 op: LogicalExpressionOp::Or,
-                left: Box::new(AstItem::Command {
+                left: Box::new(Command {
                     raw: String::from("a"),
                 }),
-                right: Box::new(AstItem::Command {
+                right: Box::new(Command {
                     raw: String::from("b"),
                 }),
             }),
-            right: Box::new(AstItem::Command {
+            right: Box::new(Command {
                 raw: String::from("c"),
             }),
         };

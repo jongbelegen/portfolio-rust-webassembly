@@ -1,4 +1,4 @@
-use crate::command::Command;
+
 use crate::shell_state::ShellState;
 
 pub fn false_builtin(shell_state: &mut ShellState) {

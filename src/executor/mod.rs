@@ -1,10 +1,10 @@
 use crate::builtin;
 use crate::command::Command;
 use crate::parser::token;
-use crate::parser::token::Token::{And, Or, Pipeline, Raw, Semicolon};
-use crate::parser::token::{group_by_pipeline, Token};
-use crate::shell_state::{ShellOutput, ShellState};
-use crate::terminal::print_result;
+use crate::parser::token::Token::{And, Or, Raw};
+use crate::parser::token::{Token};
+use crate::shell_state::{ShellState};
+
 use std::str::FromStr;
 
 pub mod history;
@@ -71,6 +71,7 @@ fn execute_command(raw_cmd: &String, shell_state: &mut ShellState) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::token::Token::{And, Or, Raw, Semicolon};
 
     #[test]
     fn or_token_should_only_eval_first_cmd_when_first_succeeds() {
