@@ -1,6 +1,8 @@
-use crate::parser::token::Token;
-
+#[derive(Debug, PartialEq)]
 pub enum Exception {
     AsyncIsUnSupported,
-    CommandHasNoCharacters
+    CommandHasNoCharacters,
+    TokensCannotBeParsed(String),
+    TokenIsNotALogicalExpr(String),
+    ConversionNotImplemented(String)
 }
