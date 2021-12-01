@@ -1,6 +1,6 @@
-use shell_state::ShellState;
 use terminal::ReadResult;
 use crate::exception::Exception;
+use crate::shell_state::ShellState;
 
 mod executor;
 mod shell_state;

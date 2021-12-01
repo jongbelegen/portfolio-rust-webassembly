@@ -1,4 +1,4 @@
-use crate::builtin;
+use crate::{builtin, log};
 use crate::command::Command;
 use crate::exception::Exception;
 use crate::parser::ast;
@@ -11,11 +11,12 @@ use std::convert::TryFrom;
 pub mod history;
 
 pub fn run(raw_line: &String, shell_state: &mut ShellState) -> Result<(), Exception> {
-    history::append(raw_line).expect("History should be appendable");
+    // history::append(raw_line).expect("History should be appendable");
     let tokens = token::tokenize_raw_line(raw_line);
 
     let a = ast::parse_to_ast(tokens.as_slice());
-    dbg!(a);
+
+    log(format!("{:?}", &a));
     shell_state.output.clear();
     Ok(())
 }
