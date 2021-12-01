@@ -3,7 +3,6 @@ use crate::parser::ast::AstItem;
 
 pub fn convert_token_to_command(token: &String) -> Result<AstItem, Exception> {
     let mut command_split = token.split_whitespace().map(|s| s.to_string());
-    dbg!(token);
 
     Ok(AstItem::Command {
         keyword: command_split

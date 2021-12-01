@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use crate::parser::ast::LogicalExpressionOp;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -8,6 +9,15 @@ pub enum Token {
     Async,     // &
     Pipeline,  // |
     Raw(String),
+}
+
+impl From<&LogicalExpressionOp> for Token {
+    fn from(logical_expr: &LogicalExpressionOp) -> Self {
+        match logical_expr {
+            LogicalExpressionOp::Or => Self::Or,
+            LogicalExpressionOp::And => Self::And
+        }
+    }
 }
 
 impl Display for Token {
@@ -118,10 +128,6 @@ pub fn tokenize_raw_line(line: &String) -> Vec<Token> {
     }
 
     return result;
-}
-
-pub fn contains_unsupported_async_token(tokens: &Vec<Token>) -> bool {
-    tokens.contains(&Token::Async)
 }
 
 fn is_escaper(char: char) -> bool {

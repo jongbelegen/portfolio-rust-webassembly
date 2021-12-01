@@ -66,13 +66,16 @@ fn split_last_by_logical_expr(
     }
 }
 
-fn group_by_token<'a>(tokens: &'a [Token], token: &Token) -> Option<Vec<&'a [Token]>> {
-    let tokens: Vec<&[Token]> = tokens.split(|t| t == token).collect();
+fn group_by_pipeline(tokens: &[Token]) -> Result<Option<Vec<&[Token]>>, Exception> {
+    if !tokens.contains(&Token::Pipeline) {
+        return Ok(None);
+    }
 
-    if tokens.len() == 1 {
-        None
-    } else {
-        Some(tokens)
+    let tokens: Vec<&[Token]> = tokens.split(|t| t == &Token::Pipeline).collect();
+
+    match tokens.as_slice() {
+        [&[], ..] | [.., &[]] => Err(Exception::TokenCannotBeParsed(Token::Pipeline)),
+        _ => Ok(Some(tokens)),
     }
 }
 
@@ -83,6 +86,7 @@ pub fn parse_to_ast(tokens: &[Token]) -> Result<AstItem, Exception> {
     if tokens.contains(&Token::Semicolon) {
         let tokens: Result<Vec<_>, _> = tokens
             .split(|t| t == &Token::Semicolon)
+            .filter(|slice| !slice.is_empty())
             .map(|token_slice| parse_to_ast(token_slice))
             .collect();
 
@@ -90,6 +94,10 @@ pub fn parse_to_ast(tokens: &[Token]) -> Result<AstItem, Exception> {
     }
 
     if let Some((logical_token, left, right)) = split_last_by_logical_expr(tokens)? {
+        if left.is_empty() || right.is_empty() {
+            return Err(Exception::TokenCannotBeParsed(Token::from(&logical_token)));
+        }
+
         return Ok(LogicalExpression {
             op: logical_token,
             left: Box::new(parse_to_ast(left)?),
@@ -97,7 +105,7 @@ pub fn parse_to_ast(tokens: &[Token]) -> Result<AstItem, Exception> {
         });
     }
 
-    if let Some(groups) = group_by_token(tokens, &Token::Pipeline) {
+    if let Some(groups) = group_by_pipeline(tokens)? {
         let tokens: Result<Vec<_>, _> = groups
             .into_iter()
             .map(|token_slice| parse_to_ast(token_slice))
@@ -106,9 +114,13 @@ pub fn parse_to_ast(tokens: &[Token]) -> Result<AstItem, Exception> {
         return Ok(Pipeline(tokens?));
     }
 
+    if tokens.contains(&Token::Async) {
+        return Err(Exception::AsyncIsUnSupported);
+    }
+
     match &tokens {
         &[token] => AstItem::try_from(token),
-        tokens => Err(Exception::TokensCannotBeParsed(format!("{:?}", tokens))),
+        tokens => Err(Exception::Unexpected(format!("Ast should have processed all non raw tokens: {:?}", tokens))),
     }
 }
 
@@ -131,11 +143,7 @@ mod tests {
         };
 
         // a || b
-        let from = &[
-            Token::Raw(String::from("a")),
-            Token::Or,
-            Token::Raw(String::from("b")),
-        ];
+        let from = &[create_raw("a"), Token::Or, create_raw("b")];
 
         assert_eq!(parse_to_ast(from), Ok(expect));
     }
@@ -165,23 +173,43 @@ mod tests {
 
         // a || b && c
         let from = &[
-            Token::Raw(String::from("a")),
+            create_raw("a"),
             Token::Or,
-            Token::Raw(String::from("b")),
+            create_raw("b"),
             Token::And,
-            Token::Raw(String::from("c")),
+            create_raw("c"),
         ];
 
         assert_eq!(parse_to_ast(from), Ok(expect));
     }
 
     #[test]
+    fn logical_expression_should_have_values() {
+        assert_eq!(
+            parse_to_ast(&[Token::And]),
+            Err(Exception::TokenCannotBeParsed(Token::And))
+        )
+    }
+
+    #[test]
+    fn logical_expression_should_have_a_left_value() {
+        assert_eq!(
+            parse_to_ast(&[Token::And, create_raw("a")]),
+            Err(Exception::TokenCannotBeParsed(Token::And))
+        )
+    }
+
+    #[test]
+    fn logical_expression_should_have_a_right_value() {
+        assert_eq!(
+            parse_to_ast(&[create_raw("a"), Token::And]),
+            Err(Exception::TokenCannotBeParsed(Token::And))
+        )
+    }
+
+    #[test]
     fn test_pipeline() {
-        let from = &[
-            Token::Raw(String::from("a")),
-            Token::Pipeline,
-            Token::Raw(String::from("b")),
-        ];
+        let from = &[create_raw("a"), Token::Pipeline, create_raw("b")];
 
         let expect = Pipeline(vec![
             Command {
@@ -200,11 +228,11 @@ mod tests {
     #[test]
     fn test_multiple_pipelines() {
         let from = &[
-            Token::Raw(String::from("a")),
+            create_raw("a"),
             Token::Pipeline,
-            Token::Raw(String::from("b")),
+            create_raw("b"),
             Token::Pipeline,
-            Token::Raw(String::from("c")),
+            create_raw("c"),
         ];
 
         let expect = Pipeline(vec![
@@ -226,12 +254,35 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_should_have_values() {
+        let tokens = &[Token::Pipeline];
+        assert_eq!(
+            parse_to_ast(tokens),
+            Err(Exception::TokenCannotBeParsed(Token::Pipeline))
+        );
+    }
+
+    #[test]
+    fn pipeline_should_have_a_left_value() {
+        let tokens = &[create_raw("a"), Token::Pipeline];
+        assert_eq!(
+            parse_to_ast(tokens),
+            Err(Exception::TokenCannotBeParsed(Token::Pipeline))
+        );
+    }
+
+    #[test]
+    fn pipeline_should_have_a_right_value() {
+        let tokens = &[Token::Pipeline, create_raw("a")];
+        assert_eq!(
+            parse_to_ast(tokens),
+            Err(Exception::TokenCannotBeParsed(Token::Pipeline))
+        );
+    }
+
+    #[test]
     fn test_semicolon() {
-        let from = &[
-            Token::Raw(String::from("a")),
-            Token::Semicolon,
-            Token::Raw(String::from("b")),
-        ];
+        let from = &[create_raw("a"), Token::Semicolon, create_raw("b")];
 
         let expect = Script(vec![
             Command {
@@ -248,13 +299,31 @@ mod tests {
     }
 
     #[test]
+    fn test_semicolon_with_only_empty_values() {
+        let tokens = &[Token::Semicolon];
+        assert_eq!(parse_to_ast(tokens), Ok(Script(Vec::new())));
+    }
+
+    #[test]
+    fn test_semicolon_with_only_left_value() {
+        let tokens = &[create_raw("a"), Token::Semicolon];
+        assert_eq!(parse_to_ast(tokens), Ok(Script(vec![create_cmd("a")])));
+    }
+
+    #[test]
+    fn test_semicolon_with_only_right_value() {
+        let tokens = &[Token::Semicolon, create_raw("a")];
+        assert_eq!(parse_to_ast(tokens), Ok(Script(vec![create_cmd("a")])));
+    }
+
+    #[test]
     fn test_multiple_semicolons() {
         let from = &[
-            Token::Raw(String::from("a")),
+            create_raw("a"),
             Token::Semicolon,
-            Token::Raw(String::from("b")),
+            create_raw("b"),
             Token::Semicolon,
-            Token::Raw(String::from("c")),
+            create_raw("c"),
         ];
 
         let expect = Script(vec![
@@ -296,26 +365,20 @@ mod tests {
         let tokens = &[Token::Or, Token::Pipeline, Token::And, Token::Async];
         let expected: Vec<&[Token]> = vec![&[Token::Or], &[Token::And, Token::Async]];
 
-        assert_eq!(group_by_token(tokens, &Token::Pipeline), Some(expected));
+        assert_eq!(group_by_pipeline(tokens), Ok(Some(expected)));
     }
 
     #[test]
     fn test_group_by_pipeline_when_pipelines_are_not_defined() {
         let tokens = &[Token::And, Token::Async];
-        assert_eq!(group_by_token(tokens, &Token::Pipeline), None);
+        assert_eq!(group_by_pipeline(tokens), Ok(None));
     }
 
-    // In real life this should be caught by the token validator that is being called before the ast is being ran
-    #[test]
-    fn test_incompatible_order_of_tokens() {
-        assert_eq!(
-            parse_to_ast(&[Token::Or, Token::And]),
-            Err(Exception::TokensCannotBeParsed(String::from("[]")))
-        );
+    fn create_raw(token: &str) -> Token {
+        Token::Raw(String::from(token))
+    }
 
-        assert_eq!(
-            parse_to_ast(&[Token::Or]),
-            Err(Exception::TokensCannotBeParsed(String::from("[]")))
-        )
+    fn create_cmd(token: &str) -> AstItem {
+        AstItem::try_from(&Token::Raw(String::from(token))).unwrap()
     }
 }
