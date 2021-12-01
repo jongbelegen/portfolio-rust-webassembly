@@ -1,4 +1,4 @@
 pub mod token;
 pub mod ast;
-mod validator;
+pub mod validator;
 

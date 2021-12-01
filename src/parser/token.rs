@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Or,        // ||
@@ -6,6 +8,19 @@ pub enum Token {
     Async,     // &
     Pipeline,  // |
     Raw(String),
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Or => write!(f, "||"),
+            Token::And => write!(f, "&&"),
+            Token::Semicolon => write!(f, ";"),
+            Token::Async => write!(f, "&"),
+            Token::Pipeline => write!(f, "|"),
+            Token::Raw(string) => write!(f, "{}", string),
+        }
+    }
 }
 
 // transform raw lines in to tokens

@@ -1,0 +1,5 @@
+like posix shell.
+
+No support needed for:
+- & async
+- lines that don't end. eg: "foo \", "foo ||"

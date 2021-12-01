@@ -6,6 +6,7 @@ use crate::parser::ast;
 use crate::parser::token;
 use crate::parser::token::Token::{And, Or, Raw};
 use crate::parser::token::{contains_unsupported_async_token, Token};
+use crate::parser::validator::is_valid_token_order;
 use crate::shell_state::ShellState;
 
 pub mod history;
@@ -13,6 +14,8 @@ pub mod history;
 pub fn run(raw_line: &String, shell_state: &mut ShellState) -> Result<(), Exception> {
     history::append(raw_line).expect("History should be appendable");
     let tokens = token::tokenize_raw_line(raw_line);
+
+    is_valid_token_order(tokens.as_slice())?;
 
     if contains_unsupported_async_token(&tokens) {
         return Err(Exception::AsyncIsUnSupported);
