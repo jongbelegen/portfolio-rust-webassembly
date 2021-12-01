@@ -107,10 +107,7 @@ pub fn parse_to_ast(tokens: &[Token]) -> Result<AstItem, Exception> {
     }
 
     match &tokens {
-        &[Token::Raw(str)] => Ok(AstItem::Command {
-            keyword: String::from(str),
-            args: Vec::new(),
-        }),
+        &[token] => AstItem::try_from(token),
         tokens => Err(Exception::TokensCannotBeParsed(format!("{:?}", tokens))),
     }
 }
@@ -306,5 +303,19 @@ mod tests {
     fn test_group_by_pipeline_when_pipelines_are_not_defined() {
         let tokens = &[Token::And, Token::Async];
         assert_eq!(group_by_token(tokens, &Token::Pipeline), None);
+    }
+
+    // In real life this should be caught by the token validator that is being called before the ast is being ran
+    #[test]
+    fn test_incompatible_order_of_tokens() {
+        assert_eq!(
+            parse_to_ast(&[Token::Or, Token::And]),
+            Err(Exception::TokensCannotBeParsed(String::from("[]")))
+        );
+
+        assert_eq!(
+            parse_to_ast(&[Token::Or]),
+            Err(Exception::TokensCannotBeParsed(String::from("[]")))
+        )
     }
 }
